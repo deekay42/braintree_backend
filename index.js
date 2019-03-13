@@ -27,6 +27,73 @@ var gateway = braintree.connect({
     privateKey:   '745d4f3a0e7602993da8d10a3c484243'
 });
 
+
+
+exports.completePairing = functions.https.onRequest((req, res) =>
+{
+  const uid = req.body.uid;
+
+  let payload = {
+    notification: {
+      title: 'PAIRING SUCCESSFUL'
+    }
+  };
+
+  return getUser(uid)
+  .then(user_record =>
+  {
+    db.collection('users').doc(uid).set({paired: true}, { merge: true});
+    admin.messaging().sendToDevice(user_record.device_id, payload);
+    res.status(200).send("SUCCESSFUL");
+    return true;
+  });
+});
+
+
+// exports.did2uid = functions.https.onRequest((req, res) =>
+// {
+//   const device_id = req.body.device_id;
+//   var did2uidRef = db.collection('deviceid2uid').doc(device_id);
+//
+//   return did2uidRef.get().
+//   then(doc =>
+//   {
+//     console.log('Finished retrieving doc');
+//     if (!doc.exists)
+//     {
+//       console.log('No such user!');
+//       res.status(500).send(false);
+//       return false;
+//     }
+//     else
+//     {
+//       var data = doc.data();
+//       console.log("this is the result for the device id: "+JSON.stringify(data));
+//
+//       if ('uid' in data)
+//       {
+//         console.log("uid is in data");
+//         res.status(200).send(data.uid);
+//         return true;
+//       }
+//       else
+//       {
+//         console.log("uid is NOT in data");
+//         res.status(500).send(false);
+//         return false;
+//       }
+//     }
+//   }).
+//   catch(err =>
+//   {
+//     console.log(err);
+//     res.status(500).send(false);
+//     return false;
+//   });
+// })
+
+
+
 exports.client_token = functions.https.onCall((data, context) => {
 
   if (!context.auth) {
@@ -35,37 +102,69 @@ exports.client_token = functions.https.onCall((data, context) => {
         'while authenticated.');
   }
 
-  console.log(context.auth.uid);
+  var uid = context.auth.uid;
 
-  return uid2bt_id(context.auth.uid, bt_id => {
-    return gateway.clientToken.generate({customerId: bt_id})
-        .then(response =>
-        {
-          if(response.success)
-          {
-            var clientToken = response.clientToken;
-            console.log('client token sent');
-            return response.clientToken;
-          }
-          else
-          {
-              console.log('Error obtaining clientToken');
-              console.log(response.message);
-              return response;
-          }
-        })
-        .catch( err =>
-        {
-          console.log('Error obtaining clientToken');
-          console.log(err);
-          return err;
-        });
+  return getUser(uid)
+  .then(user_rec =>
+  {
+    return uid2bt_id(user_rec);
+  })
+  .then(bt_id =>
+  {
+    return gateway.clientToken.generate({customerId: bt_id});
+  })
+  .catch( err =>
+  {
+    console.log('User does not have a bt_id');
+    console.log(err);
+    return gateway.clientToken.generate();
+  })
+  .then(response =>
+  {
+    if(response.success)
+    {
+      var clientToken = response.clientToken;
+      console.log('client token sent');
+      return response.clientToken;
+    }
+    else
+    {
+        console.log('Error obtaining clientToken');
+        console.log(response.message);
+        return response;
+    }
+  })
+  .catch( err =>
+  {
+    console.log('Error obtaining clientToken');
+    console.log(err);
+    return err;
   });
 });
 
-exports.subscribe = functions.https.onCall((data, context) => {
+exports.passUIDtoDesktop = functions.https.onCall((data, context) =>
+{
+  const realtimeDBID = data.realtimeDBID;
+  var db = admin.database();
+  var ref = db.ref("uids");
 
-  if (!context.auth) {
+  return ref.child(realtimeDBID).set({uid: context.auth.uid})
+  .then(response =>
+  {
+    console.log("Pairing successful");
+    return "SUCCESS";
+  })
+  .catch(err =>
+  {
+    console.log("Pairing NOT successful");
+    return err;
+  });
+});
+
+exports.subscribe = functions.https.onCall((data, context) =>
+{
+  if (!context.auth)
+  {
     // Throwing an HttpsError so that the client gets the error details.
     throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
         'while authenticated.');
@@ -76,75 +175,69 @@ exports.subscribe = functions.https.onCall((data, context) => {
   var nonceFromTheClient = data.payment_method_nonce;
   console.log('This is the nonce: '+nonceFromTheClient);
 
-
-  return gateway.customer.find(uid, (err, customer) =>
+  return getUser(uid)
+  .then(user_rec =>
   {
-    // Customer doesnt exist yet
-    if(err)
-    {
+    return uid2bt_id(user_rec);
+  })
+  .catch(err =>
+  {
+      console.log('Customer does not exist yet');
       // create new customer
       return gateway.customer.create({paymentMethodNonce: nonceFromTheClient})
-        .then( result =>
-        {
-           if(result.success)
-           {
-             console.log('This is the customer id: '+result.customer.id);
+      .then( result =>
+      {
+        console.log("Then: "+JSON.stringify(result));
+         if(result.success)
+         {
+           console.log('New Customer successfully created');
+           console.log('This is the customer id: '+result.customer.id);
 
-             var userRef = db.collection('users').doc(uid);
-             console.log("Now trying to find user: "+uid);
-             var customer = result;
-             // add bt_id to firestore
-             return userRef.update({bt_uid: result.customer.id});
-           }
-           else
-           {
-             throw new functions.https.HttpsError('user-create', 'Failed to create user');
-           }
-         })
-         .catch( err =>
+           var userRef = db.collection('users').doc(uid);
+           console.log("Now trying to find user: "+uid);
+           var customer = result;
+           // add bt_id to firestore
+           userRef.update({bt_id: result.customer.id});
+           return gateway.subscription.create({
+             paymentMethodToken: result.customer.paymentMethods[0].token,
+             planId: "premium_subscription"
+           })
+         }
+         else
          {
-           console.log('error: '+err);
-           throw err;
-         })
-         .then(doc =>
+           console.log('Error creating user');
+           throw new functions.https.HttpsError('user-create', 'Failed to create user');
+         }
+       })
+       .catch( err =>
+       {
+         console.log('Error creating user: '+err);
+         throw err;
+       })
+       .then(result =>
+       {
+         if(result.success)
          {
-           if (!doc.exists)
-           {
-             throw new functions.https.HttpsError('no-such-user', 'Couldn\'t find user');
-           }
-           else
-           {
-             console.log("Successfully updated bt_id");
-             return gateway.subscription.create({
-               paymentMethodToken: result.customer.paymentMethods.token,
-               planId: "premium_subscription"
-             })
-           }
-         })
-         .catch(error =>
+           console.log('Successfully created new subscriptions!');
+           return "SUCCESS";
+         }
+         else
          {
-           console.log("ERROR: couldn't find the user "+error.message);
-           throw error;
-         })
-         .then(result =>
-         {
-           if(result.success)
-           {
-             console.log('Success!');
-             return result;
-           }
-           else
-           {
-             throw new functions.https.HttpsError('subscribe-error', 'Checkout unsuccessful: ');
-           }
-         })
-         .catch(error =>
-         {
-           console.log('subscribe error: '+err.message);
-           throw error;
-         });
-    }
-    else
+           console.log('Error creating new subscription');
+           throw new functions.https.HttpsError('subscribe-error', 'Checkout unsuccessful: ');
+         }
+       })
+       .catch(error =>
+       {
+         console.log('subscribe error: '+err.message);
+         throw error;
+       });
+  })
+  .then(bt_id =>
+  {
+    console.log('customer already has a bt_id: '+bt_id);
+    return gateway.customer.find(bt_id)
+    .then(customer =>
     {
       var pmethods = customer.paymentMethods;
       console.log("customer already exists");
@@ -167,46 +260,72 @@ exports.subscribe = functions.https.onCall((data, context) => {
       return gateway.subscription.create({
         paymentMethodToken: most_recent_p.token,
         planId: "premium_subscription"
-      })
-      .then(result =>
-      {
-            if (result.success)
-            {
-              console.log('Success!');
-              return result;
-            }
-            else
-            {
-              console.log('Payment not successful: '+result.message);
-              throw new functions.https.HttpsError('subscribe-error', 'Checkout unsuccessful: '+err.message);
-            }
-      })
-      .catch(err =>
-      {
-        console.log('subscribe error');
-        throw err;
       });
-    }
+    })
+    .catch( err=>
+    {
+      console.log(err);
+      throw new functions.https.HttpsError('failed-precondition', 'braintree user not found');
+    })
+    .then(result =>
+    {
+      if (result.success)
+      {
+        console.log('Success!: '+JSON.stringify(result));
+        return "SUCCESS";
+      }
+      else
+      {
+        console.log('Payment not successful: '+result.message);
+        throw new functions.https.HttpsError('subscribe-error', 'Checkout unsuccessful: '+err.message);
+      }
+    })
+    .catch(err =>
+    {
+      console.log('subscribe error');
+      throw err;
+    });
   });
 });
 
-function hasActiveSub(uid, callback)
+function getSubsForCustomer(bt_id)
 {
-  if(uid === null)
-    return callback(false);
-  console.log("trying to find customer: "+uid);
-  return gateway.customer.find(uid, (err, customer) =>
+  return new Promise((resolve, reject) =>
   {
-    if(!err)
+    if(bt_id === null)
+      return reject(new Error("bt_id was null"));
+    return gateway.customer.find(bt_id, (err, customer) =>
     {
-      console.log('Found customer');
-      var pmethods = customer.paymentMethods;
-      var subs = [];
-      for(var i=0; i<pmethods.length; ++i)
-        subs = subs.concat(pmethods[i].subscriptions);
-      console.log("Found these subs");
-      console.log(subs);
-      for(i=0; i<subs.length; ++i)
+      if(!err)
+      {
+        console.log('Found customer');
+        var pmethods = customer.paymentMethods;
+        var subs = [];
+        for(var i=0; i<pmethods.length; ++i)
+          subs = subs.concat(pmethods[i].subscriptions);
+        console.log("Found these subs");
+        console.log(subs);
+        return resolve(subs);
+      }
+      else
+      {
+        console.log('no active subscriptions, couldnt even find the customer');
+        console.log(err);
+        return reject(new Error('no active subscriptions, couldnt even find the customer'));
+      }
+    });
+  })
+}
+
+function hasActiveSub(bt_id)
+{
+  console.log("trying to find customer: "+bt_id);
+
+  return new Promise((resolve, reject) =>
+  {
+    getSubsForCustomer(bt_id).then(subs =>
+    {
+      for(var i=0; i<subs.length; ++i)
       {
         var subscription = subs[i];
         if(subscription.status === braintree.Subscription.Status.Active
@@ -216,235 +335,292 @@ function hasActiveSub(uid, callback)
         {
           console.log("Found active subscription");
           console.log(subscription);
-          return callback(true);
+          return resolve(true);
         }
       }
       console.log("Didnt find active subscription for the customer");
-      return callback(false);
-    }
-    else
+      return reject(new Error("Didnt find active subscription for the customer"));
+    })
+    .catch(error =>
     {
-      console.log('no active subscriptions, couldnt even find the customer');
-      console.log(err);
-      return callback(false);
-    }
+      console.log("ERROR: couldn't find the user "+error.message);
+      return reject(new Error("ERROR: couldn't find the user "+error.message));
+    });
   });
 }
 
-
-function uid2bt_id(uid, callback)
+function getUser(uid)
 {
   var userRef = db.collection('users').doc(uid);
   console.log("Now trying to find user: "+uid);
 
-  return userRef.get().then(doc =>
+  return new Promise( (resolve, reject) =>
   {
-    if (!doc.exists)
+    return userRef.get().
+    then(doc =>
     {
-      console.log('No such user!');
-      callback(null);
-      return false;
-    }
-    else
-    {
-      var data = doc.data();
-      console.log("this is the result for the user: "+JSON.stringify(data));
-
-      if ('braintreeUID' in data)
+      console.log('Finished retrieving doc');
+      if (!doc.exists)
       {
-        return callback(data.braintreeUID);
+        console.log('No such user!');
+        return reject(new Error('User does not exist'));
       }
       else
       {
-        return callback(null);
+        var data = doc.data();
+        console.log("this is the result for the user: "+JSON.stringify(data));
+        return resolve(data);
       }
+    })
+    .catch(error =>
+    {
+      console.log("ERROR: couldn't find the user "+error.message);
+      return reject(new Error('User does not exist'));
+    });
+  });
+}
+
+function uid2bt_id(user_record)
+{
+  return new Promise( (resolve, reject) =>
+  {
+    if ('bt_id' in user_record)
+    {
+      return resolve(user_record.bt_id);
     }
-  })
-  .catch(error => {
-    console.log("ERROR: couldn't find the user "+error);
-    callback(null);
+    else
+    {
+      return reject(new Error('User does not have a braintreeuid'));
+    }
   });
 }
 
 // checks if user has a valid subscription and if not sends back the number of predictions left for the day
 exports.isValid = functions.https.onCall((data, context) =>
 {
-
   if (!context.auth) {
     // Throwing an HttpsError so that the client gets the error details.
     throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
         'while authenticated.');
   }
 
-  var uid = data.customer_id;
+  var uid = context.auth.uid;
+  var device_id = data.device_id;
+  var user_record = null;
+  var userRef = db.collection('users').doc(uid);
 
-  return uid2bt_id(uid, bt_id =>
+  return getUser(uid)
+  .then(user_rec =>
+  {
+    user_record = user_rec;
+    userRef.set({device_id: device_id}, { merge: true});
+    return uid2bt_id(user_rec);
+  })
+  .then(bt_id =>
   {
     console.log("result for uid2bt was: "+bt_id);
-    if(bt_id === null)
-    {
-      console.log("the bt_id is null");
-      return getNumPredLast24(uid, (number) =>
-      {
-        var left = predsPerDay - number;
-        console.log("# of preds left is: "+left.toString());
-        return left.toString();
-      });
-    }
-    else
-    return hasActiveSub(bt_id, isActive =>
-    {
-      if(isActive)
-      {
-        return true;
-      }
-      else
-      {
-        return getNumPredLast24(uid, (number) =>
+    return hasActiveSub(bt_id);
+  })
+  .then(isActive =>
+  {
+      return "true,"+(user_record.paired ? "true": "false");
+  })
+  .catch(err =>
+  {
+    console.log('customer is not active: '+err);
+    if(user_record !== null)
+      return getNumPredLast24(uid)
+        .then(querySnapshot =>
         {
-          var left = predsPerDay - number;
+          console.log(querySnapshot);
+          console.log("number of preds in last 24h: "+querySnapshot.size);
+          var left = predsPerDay - (querySnapshot.size);
           console.log("# of preds left is: "+left.toString());
-          return left.toString();
+
+          var result = left.toString() + "," + (user_record.paired ? "true": "false");
+          console.log(user_record.paired);
+          console.log(result);
+
+          return result;
+        })
+        .catch(error =>
+        {
+            console.log("ERROR: querysnapshot "+error);
+            return error;
         });
-      }
-    });
+    else
+    {
+      console.log("Creating new user");
+      userRef.set({device_id: device_id, paired: false});
+      return "10,false";
+    }
   });
 });
 
-function cancelAllSubs(subs)
-{
-  for(var i=0; i<subs.length; ++i)
-  {
-    gateway.subscription.cancel(subs[i].id);
+exports.cancelSub = functions.https.onCall((data, context) => {
+  if (!context.auth) {
+    // Throwing an HttpsError so that the client gets the error details.
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
   }
-}
 
-function getNumPredLast24(UID, callback)
+  var uid = context.auth.uid;
+
+  return getUser(uid)
+  .then(user_rec =>
+  {
+    return uid2bt_id(user_rec);
+  })
+  .then(bt_id =>
+  {
+    console.log("result for uid2bt was: "+bt_id);
+    return getSubsForCustomer(bt_id);
+  })
+  .then(subs =>
+  {
+    for(var i=0; i<subs.length; ++i)
+    {
+      var subscription = subs[i];
+      if(subscription.status !== braintree.Subscription.Status.Canceled
+       //  || (subscription.status == braintree.Subscription.Status.PastDue
+       // && subscription.daysPastDue <= 5
+      )
+      {
+        console.log("canceling this sub");
+        gateway.subscription.cancel(subscription.id);
+      }
+    }
+    return true;
+  })
+  .catch(error =>
+  {
+    console.log("ERROR: couldn't find the user "+error.message);
+    return false;
+  });
+});
+
+function getNumPredLast24(UID)
 {
   var cutoff = new Date();
   var days = 1;
   cutoff.setDate(cutoff.getDate() - days);
-
   console.log("This is our UID: "+UID);
-
-  var predictionsRef = db.collection('users').doc(UID).collection('predictions');
-  var last24hpredictions = predictionsRef.where('timestamp', '>=', cutoff);
-
+  const userRef = db.collection('users').doc(UID);
   console.log("getting number now ");
-
-  return last24hpredictions.get().
-    then(querySnapshot =>
-    {
-      console.log("number of preds in last 24h: "+querySnapshot.size);
-      return callback(querySnapshot.size);
-    })
-    .catch(error =>
-    {
-        console.log("ERROR: querysnapshot "+error);
-        return error;
-    });
+  return userRef.collection('predictions').where('timestamp', '>=', cutoff).get();
 }
 
 exports.getRemainingPreds = functions.https.onCall((data, context) => {
-  const customerID = data.customer_id;
+  if (!context.auth) {
+    // Throwing an HttpsError so that the client gets the error details.
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
 
-  return getNumPredLast24(customerID, (number) =>
+  var uid = context.auth.uid;
+
+  return getUser(uid)
+  .then(user_record =>
   {
-    var left = predsPerDay - number;
+    return getNumPredLast24(uid);
+  })
+  .then(querySnapshot =>
+  {
+    console.log("number of preds in last 24h: "+querySnapshot.size);
+    var left = predsPerDay - (querySnapshot.size);
     console.log("# of preds left is: "+left.toString());
-    return left;
+    return left.toString();
+  })
+  .catch(error =>
+  {
+      console.log("ERROR: querysnapshot "+error);
+      return error;
   });
 });
 
 exports.relayMessage = functions.https.onRequest((req, res) =>
 {
-
-  const customerID = req.body.customer_id;
+  const uid = req.body.uid;
   const items = req.body.items.toString();
-  const device_id = req.body.device_id;
-  let payload = {data: {body: items}};
-  const newPredDB = {timestamp: new Date(), items: payload.data.body};
+
+  // let payload = {data: {body: items}};
+
+  let payload = {
+    notification: {
+      title: 'New items',
+      body: items
+    }
+  };
+
+  // let payload = {notification: {body: "this is a body",title: "this is a title"}, priority: "high", data: {click_action: "FLUTTER_NOTIFICATION_CLICK", items:items}}
+
+  const newPredDB = {timestamp: new Date(), items: payload.notification.body};
+  var device_id = null;
+  var user_record = null;
 
   console.log("device_id: "+device_id);
+  console.log("uid: "+uid);
+  console.log("items: "+items);
 
-  return uid2bt_id(uid, bt_id =>
+  return getUser(uid)
+  .then(user_rec =>
   {
-    return hasActiveSub(bt_id, (result) =>
+    user_record = user_rec;
+    device_id = user_record.device_id;
+    return uid2bt_id(user_rec);
+  })
+  .then(bt_id =>
+  {
+    console.log("User has a bt_id");
+    return hasActiveSub(bt_id);
+  })
+  .then(result =>
+  {
+    console.log("User has active sub");
+    db.collection('users').doc(uid).collection('predictions').add(newPredDB);
+    admin.messaging().sendToDevice(device_id, payload);
+    res.status(200).send("SUCCESSFUL,1337");
+    return true;
+  })
+  // .catch(error => {
+  //   console.log("ERROR: couldn't find the user "+error);
+  //   res.status(500).send("Couldn't find user");
+  //   throw new functions.https.HttpsError("Couldn't find user");
+  // })
+  .catch( err =>
+  {
+    console.log("User does NOT have active sub: "+err);
+    return getNumPredLast24(uid)
+    .then(querySnapshot =>
     {
-      var predictionsRef = db.collection('users').doc(customerID).collection('predictions');
-      if(result)
+      console.log("number of preds in last 24h: "+querySnapshot.size);
+      if (querySnapshot.size >= 10)
       {
-        console.log("User has active sub");
-        var addDoc = predictionsRef.add(newPredDB).then(ref =>
-        {
-          console.log('Added document with ID: ', ref.id);
-          return true;
-        });
+        console.log('querysnapshot >10');
+        payload.notification.body = "-1";
         admin.messaging().sendToDevice(device_id, payload);
-        res.status(200).send("SUCCESSFUL");
-        return true;
+        res.status(500).send("LIMIT REACHED");
+        return false;
       }
       else
       {
-        console.log("User does NOT have active sub");
-        return getNumPredLast24(customerID, (number) =>
-        {
-          if (number > 10)
-          {
-            console.log('querysnapshot >10');
-            payload.data.body = "-1";
-            admin.messaging().sendToDevice(device_id, payload);
-            res.status(500).send("LIMIT REACHED");
-            return false;
-          }
-          else
-          {
-            console.log('querysnapshot <10');
-            console.log("device_id: "+device_id)
-            return admin.messaging().sendToDevice(device_id, payload)
-              .then( response => {
-                console.log('Successfully sent message:', response);
-                // console.log('error:', response.results[0].error);
-                return predictionsRef.add(newPredDB).then(ref =>
-                {
-                  console.log('Added document with ID: ', ref.id);
-                  res.status(200).send("SUCCESSFUL");
-                  return true;
-                });
-              })
-              .catch( error => {
-                console.log('Error sending message:', error);
-                throw error;
-              });
-          }
-        });
+        console.log('querysnapshot <10');
+        console.log("device_id: "+device_id)
+        admin.messaging().sendToDevice(device_id, payload);
+        db.collection('users').doc(uid).collection('predictions').add(newPredDB);
+        res.status(200).send("SUCCESSFUL,"+(predsPerDay-querySnapshot.size));
+        return true;
       }
-    });
+    })
+    .catch(err =>
+    {
+      res.status(500).send("UID DOES NOT EXIST");
+      console.log("Error occurred: UID DOES NOT EXIST");
+      return err;
+    })
   })
-  .catch(error => {
-    console.log("ERROR: couldn't find the user "+error);
-    res.status(500).send("Couldn't find user");
-  });
+
 });
-//
-// exports.lul = functions.https.onRequest((req, res) => {
-//   const bucket = storage.bucket('neuralleague');
-//
-//   storage.getBuckets().then(function(data) {
-//     var buckets = data[0];
-//     console.log(buckets.name);
-//       return true;
-//   })
-//   // bucket.getFiles().then(function(data) {
-//   //   var file = data[0];
-//   //   console.log(file.name);
-//   //   return true;
-//   // })
-//   .catch(err => {console.log("SHITS FUCKED YO"); console.log(err)})
-//   ;
-// });
-
-
 
 exports.generateDownload = functions.https.onRequest((req, res) => {
 
