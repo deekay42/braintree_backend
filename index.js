@@ -27,11 +27,15 @@ var gateway = braintree.connect({
     privateKey:   '745d4f3a0e7602993da8d10a3c484243'
 });
 
+exports.completePairing = functions.https.onCall((data, context) => {
 
+  if (!context.auth) {
+    // Throwing an HttpsError so that the client gets the error details.
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
 
-exports.completePairing = functions.https.onRequest((req, res) =>
-{
-  const uid = req.body.uid;
+  const uid = context.auth.uid;
 
   let payload = {
     notification: {
@@ -43,55 +47,61 @@ exports.completePairing = functions.https.onRequest((req, res) =>
   .then(user_record =>
   {
     db.collection('users').doc(uid).set({paired: true}, { merge: true});
-    admin.messaging().sendToDevice(user_record.device_id, payload);
-    res.status(200).send("SUCCESSFUL");
-    return true;
+    return admin.messaging().sendToDevice(user_record.device_id, payload);
   });
 });
 
+exports.getCustomToken = functions.https.onCall((data, context) =>
+{
+  var uid = data.uid;
+  var auth_secret = data.auth_secret;
 
-// exports.did2uid = functions.https.onRequest((req, res) =>
-// {
-//   const device_id = req.body.device_id;
-//   var did2uidRef = db.collection('deviceid2uid').doc(device_id);
-//
-//   return did2uidRef.get().
-//   then(doc =>
-//   {
-//     console.log('Finished retrieving doc');
-//     if (!doc.exists)
-//     {
-//       console.log('No such user!');
-//       res.status(500).send(false);
-//       return false;
-//     }
-//     else
-//     {
-//       var data = doc.data();
-//       console.log("this is the result for the device id: "+JSON.stringify(data));
-//
-//       if ('uid' in data)
-//       {
-//         console.log("uid is in data");
-//         res.status(200).send(data.uid);
-//         return true;
-//       }
-//       else
-//       {
-//         console.log("uid is NOT in data");
-//         res.status(500).send(false);
-//         return false;
-//       }
-//     }
-//   }).
-//   catch(err =>
-//   {
-//     console.log(err);
-//     res.status(500).send(false);
-//     return false;
-//   });
-// })
+  var userAuthRef = db.collection('users').doc(uid).collection("secret").doc("auth_secret");
+  console.log("Now trying to find auth secret for user: "+uid);
 
+
+  return userAuthRef.get()
+  .catch(err =>
+  {
+    console.log('Error obtaining user auth: '+err);
+    return Promise.reject(err);
+  })
+  .then(doc =>
+  {
+    console.log('Finished retrieving doc');
+    if (!doc.exists)
+    {
+      console.log('No such user auth!');
+      throw new Error('User auth does not exist');
+    }
+    else
+    {
+      var data = doc.data();
+      console.log("this is the result for the user: "+JSON.stringify(data));
+      return data;
+    }
+  })
+  .catch(err =>
+  {
+    console.log('Error obtaining user auth: '+err);
+    return Promise.reject(err);
+  })
+  .then(user_rec =>
+  {
+    if(user_rec.auth_secret === auth_secret)
+      return admin.auth().createCustomToken(uid);
+    else {
+      throw new Error("Wrong auth_secret.");
+    }
+  })
+  .then(customToken => {
+    return customToken;
+  })
+  .catch( err => {
+    console.log("Error creating custom token:", err);
+    return err
+  });
+});
 
 
 exports.client_token = functions.https.onCall((data, context) => {
@@ -142,13 +152,24 @@ exports.client_token = functions.https.onCall((data, context) => {
   });
 });
 
+
+
+
 exports.passUIDtoDesktop = functions.https.onCall((data, context) =>
 {
+  if (!context.auth) {
+    // Throwing an HttpsError so that the client gets the error details.
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
+
   const realtimeDBID = data.realtimeDBID;
   var db = admin.database();
   var ref = db.ref("uids");
+  const uid = context.auth.uid;
 
-  return ref.child(realtimeDBID).set({uid: context.auth.uid})
+
+  return ref.child(realtimeDBID).set({uid: uid, auth_secret:auth_secret})
   .then(response =>
   {
     console.log("Pairing successful");
@@ -405,7 +426,9 @@ exports.isValid = functions.https.onCall((data, context) =>
   }
 
   var uid = context.auth.uid;
-  var device_id = data.device_id;
+
+  var device_id = null;
+  if('device_id' in data) device_id = data.device_id;
   var user_record = null;
   var userRef = db.collection('users').doc(uid);
 
@@ -413,7 +436,7 @@ exports.isValid = functions.https.onCall((data, context) =>
   .then(user_rec =>
   {
     user_record = user_rec;
-    userRef.set({device_id: device_id}, { merge: true});
+    if(device_id !== null) userRef.set({device_id: device_id}, { merge: true});
     return uid2bt_id(user_rec);
   })
   .then(bt_id =>
@@ -451,7 +474,9 @@ exports.isValid = functions.https.onCall((data, context) =>
     else
     {
       console.log("Creating new user");
-      userRef.set({device_id: device_id, paired: false});
+      const auth_secret = crypto.randomBytes(1024).toString("hex");
+      userRef.set(device_id !== null ? {device_id: device_id, paired: false} : {paired: false});
+      userRef.collection("secret").doc("auth_secret").set({auth_secret:auth_secret});
       return "10,false";
     }
   });
@@ -538,10 +563,16 @@ exports.getRemainingPreds = functions.https.onCall((data, context) => {
   });
 });
 
-exports.relayMessage = functions.https.onRequest((req, res) =>
-{
-  const uid = req.body.uid;
-  const items = req.body.items.toString();
+
+exports.relayMessage = functions.https.onCall((data, context) => {
+  if (!context.auth) {
+    // Throwing an HttpsError so that the client gets the error details.
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
+
+  const uid = context.auth.uid;
+  const items = data.items.toString();
 
   // let payload = {data: {body: items}};
 
@@ -552,7 +583,6 @@ exports.relayMessage = functions.https.onRequest((req, res) =>
     }
   };
 
-  // let payload = {notification: {body: "this is a body",title: "this is a title"}, priority: "high", data: {click_action: "FLUTTER_NOTIFICATION_CLICK", items:items}}
 
   const newPredDB = {timestamp: new Date(), items: payload.notification.body};
   var device_id = null;
@@ -579,8 +609,7 @@ exports.relayMessage = functions.https.onRequest((req, res) =>
     console.log("User has active sub");
     db.collection('users').doc(uid).collection('predictions').add(newPredDB);
     admin.messaging().sendToDevice(device_id, payload);
-    res.status(200).send("SUCCESSFUL,1337");
-    return true;
+    return "SUCCESSFUL,1337";
   })
   // .catch(error => {
   //   console.log("ERROR: couldn't find the user "+error);
@@ -599,8 +628,7 @@ exports.relayMessage = functions.https.onRequest((req, res) =>
         console.log('querysnapshot >10');
         payload.notification.body = "-1";
         admin.messaging().sendToDevice(device_id, payload);
-        res.status(500).send("LIMIT REACHED");
-        return false;
+        return "LIMIT REACHED";
       }
       else
       {
@@ -608,18 +636,41 @@ exports.relayMessage = functions.https.onRequest((req, res) =>
         console.log("device_id: "+device_id)
         admin.messaging().sendToDevice(device_id, payload);
         db.collection('users').doc(uid).collection('predictions').add(newPredDB);
-        res.status(200).send("SUCCESSFUL,"+(predsPerDay-querySnapshot.size));
-        return true;
+        return "SUCCESSFUL,"+(predsPerDay-querySnapshot.size);
       }
     })
     .catch(err =>
     {
-      res.status(500).send("UID DOES NOT EXIST");
+
       console.log("Error occurred: UID DOES NOT EXIST");
       return err;
     })
   })
 
+});
+
+
+exports.pay = functions.https.onRequest((req, res) => {
+
+  var client_token = req.body.client_token;
+
+  console.log("In pay function: 14\n");
+  const filePath = "bt.html";
+  if (fs.existsSync(filePath)) {
+    console.log('File exists!');
+  }
+  else {
+    console.log('File does not exists!');
+  }
+
+
+  fs.readFile(filePath, 'utf8',  (err, contents) => {
+    if(err) {
+        console.log("Error: "+err);
+        return res.status(500).send(err);
+    }
+    return res.status(200).send(contents.replace("MY_CLIENT_TOKEN", client_token));
+  });
 });
 
 exports.generateDownload = functions.https.onRequest((req, res) => {
