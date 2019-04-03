@@ -1,0 +1,33 @@
+
+/* [data-braintree-id="payment-options-container"] {
+    background-color: #4d4545;
+  }
+
+  [data-braintree-id="sheet-container"] {
+    background-color: #4d4545;
+  }
+
+  body {
+    background-color:#393232;
+    color: white;
+  } */
+
+  div {
+      margin-top:100;
+      margin-bottom: 100;
+  }
+
+  .tos
+  {
+      font-size: 11px;
+      color: gray;
+  }
+
+  [data-braintree-id="choose-a-way-to-pay"] {
+    font-size: 11px;
+    color: gray;
+  }
+
+  [data-braintree-id="toggle"] {
+    align-content: left;
+  }
