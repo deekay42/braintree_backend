@@ -437,7 +437,7 @@ exports.isValid = functions.https.onCall((data, context) =>
   var user_record = null;
   var userRef = db.collection('users').doc(uid);
   var return_result = {};
-  if(currentVersion !== latestVersion)
+  if(currentVersion !== null && currentVersion !== latestVersion)
     return_result["latest_version"] = latestVersionURL;
 
   return getUser(uid)
@@ -468,7 +468,7 @@ exports.isValid = functions.https.onCall((data, context) =>
         {
           console.log(querySnapshot);
           console.log("number of preds in last 24h: "+querySnapshot.size);
-          var left = predsPerDay - (querySnapshot.size);
+          var left = Math.max(0,predsPerDay - (querySnapshot.size));
           console.log("# of preds left is: "+left.toString());
           return_result["remaining"] = left.toString();
           return return_result;
@@ -560,7 +560,7 @@ exports.getRemainingPreds = functions.https.onCall((data, context) => {
   .then(querySnapshot =>
   {
     console.log("number of preds in last 24h: "+querySnapshot.size);
-    var left = predsPerDay - (querySnapshot.size);
+    var left = Math.max(0,predsPerDay - (querySnapshot.size))
     console.log("# of preds left is: "+left.toString());
     return left.toString();
   })
