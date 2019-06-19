@@ -660,7 +660,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
 
 exports.pay = functions.https.onRequest((req, res) => {
 
-  var client_token = req.query.client_token;
+  var client_token = req.body.client_token;
 
   console.log("In pay function: 14\n");
   const filePath = "bt.html";
