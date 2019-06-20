@@ -2,7 +2,6 @@
 
 // [START import]
 const functions = require('firebase-functions');
-const gcs = require('@google-cloud/storage')();
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -662,7 +661,9 @@ exports.pay = functions.https.onRequest((req, res) => {
 
   var client_token = req.body.client_token;
 
-  console.log("In pay function: 14\n");
+  console.log("In pay function:\n");
+  console.log("This is the client token:\n");
+  console.log(client_token);
   const filePath = "bt.html";
   if (fs.existsSync(filePath)) {
     console.log('File exists!');
