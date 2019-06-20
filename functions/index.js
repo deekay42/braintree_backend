@@ -657,6 +657,62 @@ exports.relayMessage = functions.https.onCall((data, context) => {
 });
 
 
+exports.getInviteCode = functions.https.onCall((data, context) =>
+{
+  if (!context.auth) {
+    // Throwing an HttpsError so that the client gets the error details.
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
+
+  console.log("in getinvitecode");
+  
+  var code = data.invite_code;
+  var uid = data.uid;
+  console.log("code:");
+  console.log(code);
+  console.log("uid:");
+  console.log(uid);
+
+  var codeRef = db.collection('invite_codes').doc(code);
+  console.log("Now trying to find code: "+code);
+
+  return codeRef.get().
+  then(doc =>
+  {
+    console.log('Finished retrieving doc');
+    if (!doc.exists)
+    {
+      console.log('No such invite code!');
+      return false;
+    }
+    else
+    {
+      var data = doc.data();
+      console.log("this is the result for the invite code: "+JSON.stringify(data));
+      if(data.hasOwnProperty("uid"))
+      {
+        if(uid === data.uid)
+          return true;
+        return false;
+      }
+      else
+      {
+        codeRef.set({uid: uid});
+        return true;
+      }
+    }
+  })
+  .catch(error =>
+  {
+    console.log("ERROR: couldn't find the invite code"+error.message);
+    return false;
+  });
+  
+});
+
+
+
 exports.pay = functions.https.onRequest((req, res) => {
 
   var client_token = req.body.client_token;
