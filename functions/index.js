@@ -2,24 +2,21 @@
 
 // [START import]
 const functions = require('firebase-functions');
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
-const archiver = require('archiver');
-const crypto = require("crypto");
+let fs;
+let crypto;
 
 // The Firebase Admin SDK to access the Firebase Realtime Database.
 const admin = require('firebase-admin');
 admin.initializeApp(functions.config().firebase);
-var db = admin.firestore();
+const db = admin.firestore();
 const settings = {/* your settings... */ timestampsInSnapshots: true};
 db.settings(settings);
 
-var braintree = require("braintree");
+const braintree = require("braintree");
 
 const predsPerDay = 10;
 
-var gateway = braintree.connect({
+const gateway = braintree.connect({
     environment:  braintree.Environment.Sandbox,
     merchantId:   'jzxwzcfzknq5py6w',
     publicKey:    'xvfv6z5nhk2t2np6',
@@ -167,8 +164,8 @@ exports.passUIDtoDesktop = functions.https.onCall((data, context) =>
   }
 
   const realtimeDBID = data.realtimeDBID;
-  var db = admin.database();
-  var ref = db.ref("uids");
+  var realtimeDB = admin.database();
+  var ref = realtimeDB.ref("uids");
   const uid = context.auth.uid;
 
 
@@ -242,6 +239,7 @@ exports.subscribe = functions.https.onCall((data, context) =>
     {
       if (result.success)
       {
+        db.collection('users').doc(uid).set({subscribed: true}, {merge: true});
         console.log('Success!: '+JSON.stringify(result));
         return "SUCCESS";
       }
@@ -454,12 +452,14 @@ exports.isValid = functions.https.onCall((data, context) =>
   })
   .then(isActive =>
   {
+    userRef.set({subscribed: true}, {merge: true});
     return_result["subscribed"] = "true";
     return return_result;
   })
   .catch(err =>
   {
     console.log('customer is not active: '+err);
+    userRef.set({subscribed: false}, {merge: true});
     return_result["subscribed"] = "false";
     if(user_record !== null)
       return getNumPredLast24(uid)
@@ -479,9 +479,10 @@ exports.isValid = functions.https.onCall((data, context) =>
         });
     else
     {
+      crypto = crypto || require("crypto");
       console.log("Creating new user");
       const auth_secret = crypto.randomBytes(1024).toString("hex");
-      userRef.set(device_id !== null ? {device_id: device_id, paired: false} : {paired: false});
+      userRef.set(device_id !== null ? {device_id: device_id, paired: false, subscribed: false} : {paired: false});
       userRef.collection("secret").doc("auth_secret").set({auth_secret:auth_secret});
       return_result["remaining"] = "10";
       return return_result;
@@ -501,6 +502,7 @@ exports.cancelSub = functions.https.onCall((data, context) => {
   return getUser(uid)
   .then(user_rec =>
   {
+    db.collection('users').doc(uid).set({subscribed: false}, {merge: true});
     return uid2bt_id(user_rec);
   })
   .then(bt_id =>
@@ -573,7 +575,7 @@ exports.getRemainingPreds = functions.https.onCall((data, context) => {
 
 exports.relayMessage = functions.https.onCall((data, context) => {
   if (!context.auth) {
-    // Throwing an HttpsError so that the client gets the error details.
+    console.log("relaymessage autherror");
     throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
         'while authenticated.');
   }
@@ -604,55 +606,49 @@ exports.relayMessage = functions.https.onCall((data, context) => {
   {
     user_record = user_rec;
     device_id = user_record.device_id;
-    return uid2bt_id(user_rec);
-  })
-  .then(bt_id =>
-  {
-    console.log("User has a bt_id");
-    return hasActiveSub(bt_id);
-  })
-  .then(result =>
-  {
-    console.log("User has active sub");
-    db.collection('users').doc(uid).collection('predictions').add(newPredDB);
-    admin.messaging().sendToDevice(device_id, payload);
-    return "SUCCESSFUL,1337";
-  })
-  // .catch(error => {
-  //   console.log("ERROR: couldn't find the user "+error);
-  //   res.status(500).send("Couldn't find user");
-  //   throw new functions.https.HttpsError("Couldn't find user");
-  // })
-  .catch( err =>
-  {
-    console.log("User does NOT have active sub: "+err);
-    return getNumPredLast24(uid)
-    .then(querySnapshot =>
+    if(user_record.subscribed)
     {
-      console.log("number of preds in last 24h: "+querySnapshot.size);
-      if (querySnapshot.size >= 10)
-      {
-        console.log('querysnapshot >10');
-        payload.notification.body = "-1";
-        admin.messaging().sendToDevice(device_id, payload);
-        return "LIMIT REACHED";
-      }
-      else
-      {
-        console.log('querysnapshot <10');
-        console.log("device_id: "+device_id)
-        admin.messaging().sendToDevice(device_id, payload);
-        db.collection('users').doc(uid).collection('predictions').add(newPredDB);
-        return "SUCCESSFUL,"+(predsPerDay-querySnapshot.size);
-      }
-    })
-    .catch(err =>
-    {
+      console.log("User has active sub");
 
-      console.log("Error occurred: UID DOES NOT EXIST");
-      return err;
-    })
-  })
+      return db.collection('users').doc(uid).collection('predictions').add(newPredDB)
+      .then(lol =>
+      {
+        return admin.messaging().sendToDevice(device_id, payload)
+        .then( lol => {return "SUCCESSFUL,1337";});
+      });
+      
+      
+    }
+    else
+    {
+      console.log("User does NOT have active sub: "+err);
+      return getNumPredLast24(uid)
+      .then(querySnapshot =>
+      {
+        console.log("number of preds in last 24h: "+querySnapshot.size);
+        if (querySnapshot.size >= 10)
+        {
+          console.log('querysnapshot >10');
+          payload.notification.body = "-1";
+          admin.messaging().sendToDevice(device_id, payload);
+          return "LIMIT REACHED";
+        }
+        else
+        {
+          console.log('querysnapshot <10');
+          console.log("device_id: "+device_id)
+          admin.messaging().sendToDevice(device_id, payload);
+          db.collection('users').doc(uid).collection('predictions').add(newPredDB);
+          return "SUCCESSFUL,"+(predsPerDay-querySnapshot.size);
+        }
+      })
+      .catch(err =>
+      {
+        console.log("Error occurred: UID DOES NOT EXIST");
+        return err;
+      });
+    }
+  });
 
 });
 
@@ -716,7 +712,7 @@ exports.getInviteCode = functions.https.onCall((data, context) =>
 exports.pay = functions.https.onRequest((req, res) => {
 
   var client_token = req.body.client_token;
-
+  fs = fs ||  require('fs');
   console.log("In pay function:\n");
   console.log("This is the client token:\n");
   console.log(client_token);
@@ -737,114 +733,3 @@ exports.pay = functions.https.onRequest((req, res) => {
     return res.status(200).send(contents.replace("MY_CLIENT_TOKEN", client_token));
   });
 });
-
-exports.generateDownload = functions.https.onRequest((req, res) => {
-
-  const filePath = "leagueIQ.png";
-  console.log('LOL!')
-
-  const bucket = admin.storage().bucket();
-
-
-  const device_id = "12345";
-  const dev_id_file_name = crypto.randomBytes(16).toString("hex");
-
-  const temp_dir_remote = crypto.randomBytes(16).toString("hex");
-  const fileName_remote = "setup.zip";
-  const remote_filepath = path.join(temp_dir_remote, fileName_remote);
-
-  if (fs.existsSync(filePath)) {
-    console.log('File exists!');
-  }
-  else {
-    console.log('File does not exists!');
-  }
-
-  // fs.writeFile(path.join(os.tmpdir(), filePath), "54321", function (err) {
-  //   if (err) throw err; else console.log('File written!');
-
-  fs.writeFile(path.join(os.tmpdir(), dev_id_file_name), device_id, (err) => {
-    if (err) throw err;
-    console.log('Saved!');
-
-  const zip_name = crypto.randomBytes(16).toString("hex");
-  var zip_output = fs.createWriteStream(path.join(os.tmpdir(), zip_name));
-  var archive = archiver('zip', {
-      store: true // Sets the compression method to STORE.
-  });
-  console.log('Starting archive!');
-  archive.on('error', (err) => {
-    throw err;
-  });
-
-  // pipe archive data to the output file
-  archive.pipe(zip_output);
-
-  archive.on('warning', rej);
-  archive.on('error', rej);
-
-  function rej(err) {
-      archive.abort();
-      console.log('err ', err);
-      return false;
-  }
-
-  // append files
-  archive.file(filePath, {name: 'setup.exe'});
-  archive.file(path.join(os.tmpdir(), dev_id_file_name), {name: 'dev_id.txt'});
-  console.log('Archive almost finished');
-  //
-  return archive.finalize()
-    .then(() => {
-    console.log('Archive created');
-    // We add a 'thumb_' prefix to thumbnails file name. That's where we'll upload the thumbnail.
-
-    // Uploading the thumbnail.
-    console.log('Now uploading');
-
-    if (fs.existsSync(path.join(os.tmpdir(), zip_name))) {
-      console.log('zip File exists!');
-    }
-    else {
-      console.log('zip File does not exists!');
-    }
-
-    // var storageRef = firebase.storage().ref();
-    // var ref = storageRef.child(path.join(os.tmpdir(), zip_name));
-    // return ref.put(zip_output);
-
-    return bucket.upload(path.join(os.tmpdir(), zip_name), {
-      destination: remote_filepath,
-      resumable: false
-    });
-    // Delete the local file to free up disk space.
-  }).catch(err => {
-  console.log("SHITS FUCKED")
-  throw new Error('Higher-level error. ' + err.message);
-}).then(() => fs.unlinkSync(path.join(os.tmpdir(), dev_id_file_name)))
-  .then(() => fs.unlinkSync(path.join(os.tmpdir(), zip_name)))
-  .then(() => {
-    console.log('Upload complete');
-    const remote_file = bucket.file(remote_filepath);
-    return remote_file.getSignedUrl({
-      action: 'read',
-      expires: '03-09-2491'
-    });
-  }).then(signedUrls => {
-      console.log('Now serving page');
-
-      return res.status(200).send(`<!doctype html>
-          <head>
-            <title>League IQ Download link</title>
-          </head>
-          <body>
-            ${"Click here to download the Desktop client: " + signedUrls[0]}
-          </body>
-        </html>`);
-
-    });
-  });
-  // [END thumbnailGeneration]
-});
-// [END generateThumbnail]
-// });
