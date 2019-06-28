@@ -167,9 +167,36 @@ exports.passUIDtoDesktop = functions.https.onCall((data, context) =>
   var realtimeDB = admin.database();
   var ref = realtimeDB.ref("uids");
   const uid = context.auth.uid;
+  const authRef = db.collection('users').doc(uid).collection("secret").doc("auth_secret");
+  var auth_secret;
 
+  return authRef.get().
+  then(doc =>
+  {
+    if (!doc.exists)
+    {
+      console.log('No auth secret found!');
+      throw new Error('Auth secret does not exist');
+    }
+    else
+    {
+      auth_secret = doc.data();
+      console.log("Auth secret is: ");
+      console.log(auth_secret);
 
-  return ref.child(realtimeDBID).set({uid: uid, auth_secret:auth_secret})
+      return ref.child(realtimeDBID).once("value");
+    }
+  })
+  .then(snapshot =>
+  {
+    if(snapshot.exists()){
+      console.log("db entry exists");
+        return ref.child(realtimeDBID).update({uid: uid, auth_secret:auth_secret});
+    }else{
+      console.log("db entry does not exist");
+        throw new Error('DB Ref does not exist');
+    }
+  })
   .then(response =>
   {
     console.log("Pairing successful");
@@ -177,6 +204,7 @@ exports.passUIDtoDesktop = functions.https.onCall((data, context) =>
   })
   .catch(err =>
   {
+    console.log(err);
     console.log("Pairing NOT successful");
     return err;
   });
@@ -616,8 +644,8 @@ exports.relayMessage = functions.https.onCall((data, context) => {
         return admin.messaging().sendToDevice(device_id, payload)
         .then( lol => {return "SUCCESSFUL,1337";});
       });
-      
-      
+
+
     }
     else
     {
@@ -662,7 +690,7 @@ exports.getInviteCode = functions.https.onCall((data, context) =>
   }
 
   console.log("in getinvitecode");
-  
+
   var code = data.invite_code;
   var uid = data.uid;
   console.log("code:");
@@ -704,7 +732,7 @@ exports.getInviteCode = functions.https.onCall((data, context) =>
     console.log("ERROR: couldn't find the invite code"+error.message);
     return false;
   });
-  
+
 });
 
 
