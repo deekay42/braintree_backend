@@ -47,8 +47,11 @@ exports.completePairing = functions.https.onCall((data, context) => {
   .then(user_record =>
   {
     db.collection('users').doc(uid).set({paired: true}, { merge: true});
-    return admin.messaging().sendToDevice(user_record.device_id, payload);
-  });
+    return admin.messaging().sendToDevice(user_record.device_id, payload)
+    .then(result => { return true;})
+    .catch(err => {console.log(err); return false;});
+  })
+  .catch(err => {console.log(err); return false;});
 });
 
 exports.getCustomToken = functions.https.onCall((data, context) =>
@@ -181,6 +184,7 @@ exports.passUIDtoDesktop = functions.https.onCall((data, context) =>
     else
     {
       auth_secret = doc.data();
+      auth_secret = auth_secret.auth_secret;
       console.log("Auth secret is: ");
       console.log(auth_secret);
 
