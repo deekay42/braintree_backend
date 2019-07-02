@@ -27,8 +27,9 @@ const latestVersion = "0.0.1";
 const latestVersionURL = "http://www.lul.com/download"
 
 
-exports.completePairing = functions.https.onCall((data, context) => {
 
+exports.completePairing = functions.https.onCall((data, context) =>
+{
   if (!context.auth) {
     // Throwing an HttpsError so that the client gets the error details.
     throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
@@ -46,11 +47,15 @@ exports.completePairing = functions.https.onCall((data, context) => {
   return getUser(uid)
   .then(user_record =>
   {
-    db.collection('users').doc(uid).set({paired: true}, { merge: true});
-    return admin.messaging().sendToDevice(user_record.device_id, payload)
-    .then(result => { return true;})
-    .catch(err => {console.log(err); return false;});
+    console.log("got the user record");
+    return db.collection('users').doc(uid).set({paired: true}, { merge: true});
   })
+  .then( result =>
+  {
+    console.log("updated the DB");
+    return admin.messaging().sendToDevice(user_record.device_id, payload);
+  })
+  .then(result => { console.log("sent the msg"); return true;})
   .catch(err => {console.log(err); return false;});
 });
 
