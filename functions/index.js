@@ -37,7 +37,10 @@ exports.completePairing = functions.https.onCall((data, context) =>
   }
 
   const uid = context.auth.uid;
-
+  
+// exports.completePairing = functions.https.onRequest((req, res) => {
+// const uid = "0daMo7V82hM7VUmWbbBtGEYBajQ2";
+  var device_id;
   let payload = {
     notification: {
       title: 'PAIRING SUCCESSFUL'
@@ -47,15 +50,17 @@ exports.completePairing = functions.https.onCall((data, context) =>
   return getUser(uid)
   .then(user_record =>
   {
-    console.log("got the user record");
+    device_id = user_record.device_id;
+    console.log("got the device id");
+    console.log(device_id);
     return db.collection('users').doc(uid).set({paired: true}, { merge: true});
   })
   .then( result =>
   {
     console.log("updated the DB");
-    return admin.messaging().sendToDevice(user_record.device_id, payload);
+    return admin.messaging().sendToDevice(device_id, payload);
   })
-  .then(result => { console.log("sent the msg"); return true;})
+  .then(result => { console.log("sent the msg: ", result); return true;})
   .catch(err => {console.log(err); return false;});
 });
 
