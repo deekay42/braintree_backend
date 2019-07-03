@@ -37,14 +37,12 @@ exports.completePairing = functions.https.onCall((data, context) =>
   }
 
   const uid = context.auth.uid;
-  
+
 // exports.completePairing = functions.https.onRequest((req, res) => {
 // const uid = "0daMo7V82hM7VUmWbbBtGEYBajQ2";
   var device_id;
   let payload = {
-    notification: {
-      title: 'PAIRING SUCCESSFUL'
-    }
+    data: {click_action: "FLUTTER_NOTIFICATION_CLICK", title: 'PAIRING SUCCESSFUL'}
   };
 
   return getUser(uid)
@@ -628,10 +626,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
   // let payload = {data: {body: items}};
 
   let payload = {
-    notification: {
-      title: 'New items',
-      body: items
-    }
+    data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: items}
   };
 
 
