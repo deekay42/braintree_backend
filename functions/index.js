@@ -630,11 +630,11 @@ exports.relayMessage = functions.https.onCall((data, context) => {
   };
 
 
-  const newPredDB = {timestamp: new Date(), items: payload.notification.body};
+  const newPredDB = {timestamp: new Date(), items: items};
   var device_id = null;
   var user_record = null;
 
-  console.log("device_id: "+device_id);
+  
   console.log("uid: "+uid);
   console.log("items: "+items);
 
@@ -643,6 +643,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
   {
     user_record = user_rec;
     device_id = user_record.device_id;
+    console.log("device_id: "+device_id);
     if(user_record.subscribed)
     {
       console.log("User has active sub");
@@ -658,7 +659,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
     }
     else
     {
-      console.log("User does NOT have active sub: "+err);
+      console.log("User does NOT have active sub: ");
       return getNumPredLast24(uid)
       .then(querySnapshot =>
       {
@@ -666,7 +667,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
         if (querySnapshot.size >= 10)
         {
           console.log('querysnapshot >10');
-          payload.notification.body = "-1";
+          payload.data.body = "-1";
           admin.messaging().sendToDevice(device_id, payload);
           return "LIMIT REACHED";
         }
@@ -681,7 +682,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
       })
       .catch(err =>
       {
-        console.log("Error occurred: UID DOES NOT EXIST");
+        console.log("Error occurred: UID DOES NOT EXIST" + err);
         return err;
       });
     }
