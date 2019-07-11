@@ -634,7 +634,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
   var device_id = null;
   var user_record = null;
 
-  
+
   console.log("uid: "+uid);
   console.log("items: "+items);
 
@@ -664,7 +664,9 @@ exports.relayMessage = functions.https.onCall((data, context) => {
       .then(querySnapshot =>
       {
         console.log("number of preds in last 24h: "+querySnapshot.size);
-        if (querySnapshot.size >= 10)
+        var remaining = Math.max(0, predsPerDay - querySnapshot.size - 1).toString();
+        payload.data.remaining = remaining;
+        if (querySnapshot.size >= predsPerDay)
         {
           console.log('querysnapshot >10');
           payload.data.body = "-1";
@@ -677,12 +679,12 @@ exports.relayMessage = functions.https.onCall((data, context) => {
           console.log("device_id: "+device_id)
           admin.messaging().sendToDevice(device_id, payload);
           db.collection('users').doc(uid).collection('predictions').add(newPredDB);
-          return "SUCCESSFUL,"+(predsPerDay-querySnapshot.size);
+          return "SUCCESSFUL,"+remaining;
         }
       })
       .catch(err =>
       {
-        console.log("Error occurred: UID DOES NOT EXIST" + err);
+        console.log("Error occurred: UID DOES NOT EXIST: " + err);
         return err;
       });
     }
