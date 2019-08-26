@@ -44,6 +44,10 @@ exports.completePairing = functions.https.onCall((data, context) =>
   let payload = {
     data: {click_action: "FLUTTER_NOTIFICATION_CLICK", title: 'PAIRING SUCCESSFUL'}
   };
+  const options = {
+    priority: 'high',
+    timeToLive: 10
+  };
 
   return getUser(uid)
   .then(user_record =>
@@ -56,7 +60,7 @@ exports.completePairing = functions.https.onCall((data, context) =>
   .then( result =>
   {
     console.log("updated the DB");
-    return admin.messaging().sendToDevice(device_id, payload);
+    return admin.messaging().sendToDevice(device_id, payload, options);
   })
   .then(result => { console.log("sent the msg: ", result); return true;})
   .catch(err => {console.log(err); return false;});
@@ -273,35 +277,44 @@ exports.subscribe = functions.https.onCall((data, context) =>
     .catch( err=>
     {
       console.log(err);
-      throw new functions.https.HttpsError('failed-precondition', 'braintree user not found');
+      console.log('braintree user not found');
+      return 'braintree user not found';
     })
     .then(result =>
     {
       if (result.success)
       {
-        db.collection('users').doc(uid).set({subscribed: true}, {merge: true});
-        console.log('Success!: '+JSON.stringify(result));
-        return "SUCCESS";
+        return db.collection('users').doc(uid).set({subscribed: true}, {merge: true});
       }
       else
       {
         console.log('Payment not successful: '+result.message);
-        throw new functions.https.HttpsError('subscribe-error', 'Checkout unsuccessful: '+err.message);
+        return  'Checkout unsuccessful';
       }
     })
+    .then(result =>
+    {
+      console.log('Success!: '+JSON.stringify(result));
+      return "SUCCESS";
+    })
+
     .catch(err =>
     {
       console.log('subscribe error');
-      throw err;
+      console.log(err);
+      return 'subscribe error';
     });
   })
   .catch(err =>
   {
+      var newCustomer;
+      console.log(err);
       console.log('Customer does not exist yet');
       // create new customer
       return gateway.customer.create({paymentMethodNonce: nonceFromTheClient})
       .then( result =>
       {
+        newCustomer = result;
         console.log("Then: "+JSON.stringify(result));
          if(result.success)
          {
@@ -312,22 +325,20 @@ exports.subscribe = functions.https.onCall((data, context) =>
            console.log("Now trying to find user: "+uid);
            var customer = result;
            // add bt_id to firestore
-           userRef.update({bt_id: result.customer.id});
-           return gateway.subscription.create({
-             paymentMethodToken: result.customer.paymentMethods[0].token,
-             planId: "premium_subscription"
-           })
+           return userRef.update({bt_id: result.customer.id});
          }
          else
          {
            console.log('Error creating user');
-           throw new functions.https.HttpsError('user-create', 'Failed to create user');
+           return 'Failed to create user';
          }
        })
-       .catch( err =>
-       {
-         console.log('Error creating user: '+err);
-         throw err;
+       .then(result => {
+         console.log("Now trying to create subscription");
+        return gateway.subscription.create({
+          paymentMethodToken: newCustomer.customer.paymentMethods[0].token,
+          planId: "premium_subscription"
+        })
        })
        .then(result =>
        {
@@ -339,13 +350,14 @@ exports.subscribe = functions.https.onCall((data, context) =>
          else
          {
            console.log('Error creating new subscription');
-           throw new functions.https.HttpsError('subscribe-error', 'Checkout unsuccessful: ');
+           return 'Error creating new subscription';
          }
        })
        .catch(error =>
        {
-         console.log('subscribe error: '+err.message);
-         throw error;
+          console.log(error);
+          console.log('Error creating new subscription');
+          return 'Error creating new subscription';
        });
   });
 });
@@ -483,50 +495,63 @@ exports.isValid = functions.https.onCall((data, context) =>
     user_record = user_rec;
     return_result["paired"] = user_record.paired ? "true": "false";
     if(device_id !== null) userRef.set({device_id: device_id}, { merge: true});
-    return uid2bt_id(user_rec);
-  })
-  .then(bt_id =>
-  {
-    console.log("result for uid2bt was: "+bt_id);
-    return hasActiveSub(bt_id);
-  })
-  .then(isActive =>
-  {
-    userRef.set({subscribed: true}, {merge: true});
-    return_result["subscribed"] = "true";
-    return return_result;
+    return uid2bt_id(user_rec)
+    .then(bt_id =>
+      {
+        console.log("result for uid2bt was: "+bt_id);
+        return hasActiveSub(bt_id);
+      })
+      .then(isActive =>
+      {
+        return userRef.set({subscribed: true}, {merge: true});
+      })
+      .then(result => {
+        return_result["subscribed"] = "true";
+        return return_result;
+      })
   })
   .catch(err =>
   {
     console.log('customer is not active: '+err);
-    userRef.set({subscribed: false}, {merge: true});
-    return_result["subscribed"] = "false";
-    if(user_record !== null)
-      return getNumPredLast24(uid)
-        .then(querySnapshot =>
+    return userRef.set({subscribed: false}, {merge: true})
+    .then(result => {
+      return_result["subscribed"] = "false";
+      if(user_record !== null)
+        return getNumPredLast24(uid)
+          .then(querySnapshot =>
+          {
+            console.log(querySnapshot);
+            console.log("number of preds in last 24h: "+querySnapshot.size);
+            var left = Math.max(0,predsPerDay - (querySnapshot.size));
+            console.log("# of preds left is: "+left.toString());
+            return_result["remaining"] = left.toString();
+            return return_result;
+          })
+          .catch(error =>
+          {
+              console.log("ERROR: querysnapshot "+error);
+              return error;
+          });
+      else
+      {
+        crypto = crypto || require("crypto");
+        console.log("Creating new user");
+        const auth_secret = crypto.randomBytes(1024).toString("hex");
+        let data = device_id !== null ? {device_id: device_id, paired: false, subscribed: false} : {paired: false};
+        //return userRef.set(data).then(res =>{return "lol";});
+        return userRef.set(data)
+        .then(res => 
         {
-          console.log(querySnapshot);
-          console.log("number of preds in last 24h: "+querySnapshot.size);
-          var left = Math.max(0,predsPerDay - (querySnapshot.size));
-          console.log("# of preds left is: "+left.toString());
-          return_result["remaining"] = left.toString();
-          return return_result;
-        })
-        .catch(error =>
-        {
-            console.log("ERROR: querysnapshot "+error);
-            return error;
+            return userRef.collection("secret").doc("auth_secret").set({auth_secret:auth_secret})
+            .then(r =>
+            {
+                return_result["remaining"] = "10";
+                return return_result;
+            });
         });
-    else
-    {
-      crypto = crypto || require("crypto");
-      console.log("Creating new user");
-      const auth_secret = crypto.randomBytes(1024).toString("hex");
-      userRef.set(device_id !== null ? {device_id: device_id, paired: false, subscribed: false} : {paired: false});
-      userRef.collection("secret").doc("auth_secret").set({auth_secret:auth_secret});
-      return_result["remaining"] = "10";
-      return return_result;
-    }
+        
+      }
+    })
   });
 });
 
@@ -538,11 +563,16 @@ exports.cancelSub = functions.https.onCall((data, context) => {
   }
 
   var uid = context.auth.uid;
+  var user_rec;
 
   return getUser(uid)
-  .then(user_rec =>
+  .then(myUser =>
   {
-    db.collection('users').doc(uid).set({subscribed: false}, {merge: true});
+    user_rec = myUser;
+    return db.collection('users').doc(uid).set({subscribed: false}, {merge: true});
+  })
+  .then(result =>{
+    console.log("updated db record");
     return uid2bt_id(user_rec);
   })
   .then(bt_id =>
@@ -561,7 +591,10 @@ exports.cancelSub = functions.https.onCall((data, context) => {
       )
       {
         console.log("canceling this sub");
-        gateway.subscription.cancel(subscription.id);
+        return gateway.subscription.cancel(subscription.id)
+        .then(result => {
+          return true;
+        });
       }
     }
     return true;
@@ -612,6 +645,30 @@ exports.getRemainingPreds = functions.https.onCall((data, context) => {
   });
 });
 
+exports.testConnection = functions.https.onCall((data, context) => {
+  if (!context.auth) {
+    console.log("testconnection autherror");
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
+
+  const uid = context.auth.uid;
+  let payload = {
+    data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: "success"}
+  };
+  
+  const options = {
+    priority: 'high',
+    timeToLive: 10
+  };
+
+  return getUser(uid)
+  .then(user_rec =>
+  {
+    return admin.messaging().sendToDevice(user_rec.device_id, payload, options).then( lol => {return "sent";});
+  });
+});
+
 
 exports.relayMessage = functions.https.onCall((data, context) => {
   if (!context.auth) {
@@ -627,6 +684,10 @@ exports.relayMessage = functions.https.onCall((data, context) => {
 
   let payload = {
     data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: items}
+  };
+  const options = {
+    priority: 'high',
+    timeToLive: 10
   };
 
 
@@ -651,7 +712,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
       return db.collection('users').doc(uid).collection('predictions').add(newPredDB)
       .then(lol =>
       {
-        return admin.messaging().sendToDevice(device_id, payload)
+        return admin.messaging().sendToDevice(device_id, payload, options)
         .then( lol => {return "SUCCESSFUL,1337";});
       });
 
@@ -670,16 +731,25 @@ exports.relayMessage = functions.https.onCall((data, context) => {
         {
           console.log('querysnapshot >10');
           payload.data.body = "-1";
-          admin.messaging().sendToDevice(device_id, payload);
-          return "LIMIT REACHED";
+          return admin.messaging().sendToDevice(device_id, payload, options)
+          .then(result => {
+            return "LIMIT REACHED";
+          });
+          
         }
         else
         {
           console.log('querysnapshot <10');
           console.log("device_id: "+device_id)
-          admin.messaging().sendToDevice(device_id, payload);
-          db.collection('users').doc(uid).collection('predictions').add(newPredDB);
-          return "SUCCESSFUL,"+remaining;
+          return admin.messaging().sendToDevice(device_id, payload, options)
+          .then(result => {
+            return db.collection('users').doc(uid).collection('predictions').add(newPredDB)
+            .then(result =>{
+              return "SUCCESSFUL,"+remaining;
+            });
+          });
+          
+         
         }
       })
       .catch(err =>
