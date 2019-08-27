@@ -669,6 +669,30 @@ exports.testConnection = functions.https.onCall((data, context) => {
   });
 });
 
+exports.subscribeSuccessful = functions.https.onCall((data, context) => {
+  if (!context.auth) {
+    console.log("subscribeSuccessful autherror");
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
+
+  const uid = context.auth.uid;
+  let payload = {
+    data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: "subscribe_success"}
+  };
+  
+  const options = {
+    priority: 'high',
+    timeToLive: 10
+  };
+
+  return getUser(uid)
+  .then(user_rec =>
+  {
+    return admin.messaging().sendToDevice(user_rec.device_id, payload, options).then( lol => {return "sent";});
+  });
+});
+
 
 exports.relayMessage = functions.https.onCall((data, context) => {
   if (!context.auth) {
