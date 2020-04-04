@@ -49,18 +49,22 @@ exports.completePairing = functions.https.onCall((data, context) =>
     timeToLive: 10
   };
 
+  console.log("THIS IS THE UID: "+uid);
+
   return getUser(uid)
   .then(user_record =>
   {
     device_id = user_record.device_id;
     console.log("got the device id");
     console.log(device_id);
+    payload["token"] = device_id;
+
     return db.collection('users').doc(uid).set({paired: true}, { merge: true});
   })
   .then( result =>
   {
     console.log("updated the DB");
-    return admin.messaging().sendToDevice(device_id, payload, options);
+    return admin.messaging().send(payload);
   })
   .then(result => { console.log("sent the msg: ", result); return true;})
   .catch(err => {console.log(err); return false;});
