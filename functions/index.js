@@ -513,9 +513,10 @@ exports.isValid = functions.https.onCall((data, context) =>
   .catch(err =>
   {
     console.log('customer is not active: '+err);
-    return userRef.set({subscribed: false}, {merge: true})
+    // TODO: for go live set this to return userRef.set({subscribed: false}, {merge: true})
+    return userRef.set({subscribed: true}, {merge: true})
     .then(result => {
-      return_result["subscribed"] = "false";
+      return_result["subscribed"] = "true";
       if(user_record !== null)
         return getNumPredLast24(uid)
           .then(querySnapshot =>
@@ -537,10 +538,11 @@ exports.isValid = functions.https.onCall((data, context) =>
         crypto = crypto || require("crypto");
         console.log("Creating new user");
         const auth_secret = crypto.randomBytes(1024).toString("hex");
-        let data = device_id !== null ? {device_id: device_id, paired: false, subscribed: false} : {paired: false};
-        //return userRef.set(data).then(res =>{return "lol";});
+        // for go live change this to: let data = device_id !== null ? {device_id: device_id, paired: false, subscribed: false} : {paired: false};
+        let data = device_id !== null ? {device_id: device_id, paired: false, subscribed: true} : {paired: false};
+
         return userRef.set(data)
-        .then(res => 
+        .then(res =>
         {
             return userRef.collection("secret").doc("auth_secret").set({auth_secret:auth_secret})
             .then(r =>
@@ -549,7 +551,7 @@ exports.isValid = functions.https.onCall((data, context) =>
                 return return_result;
             });
         });
-        
+
       }
     })
   });
@@ -656,7 +658,7 @@ exports.testConnection = functions.https.onCall((data, context) => {
   let payload = {
     data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: "success"}
   };
-  
+
   const options = {
     priority: 'high',
     timeToLive: 10
@@ -680,7 +682,7 @@ exports.subscribeSuccessful = functions.https.onCall((data, context) => {
   let payload = {
     data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: "subscribe_success"}
   };
-  
+
   const options = {
     priority: 'high',
     timeToLive: 10
@@ -759,7 +761,7 @@ exports.relayMessage = functions.https.onCall((data, context) => {
           .then(result => {
             return "LIMIT REACHED";
           });
-          
+
         }
         else
         {
@@ -772,8 +774,8 @@ exports.relayMessage = functions.https.onCall((data, context) => {
               return "SUCCESSFUL,"+remaining;
             });
           });
-          
-         
+
+
         }
       })
       .catch(err =>
