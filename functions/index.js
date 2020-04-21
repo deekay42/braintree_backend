@@ -520,6 +520,7 @@ exports.isValid = functions.https.onCall((data, context) =>
     // TODO: for go live set this to return userRef.set({subscribed: false}, {merge: true})
     return userRef.set({subscribed: true}, {merge: true})
     .then(result => {
+      //for go live...
       return_result["subscribed"] = "true";
       if(user_record !== null)
         return getNumPredLast24(uid)
