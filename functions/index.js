@@ -24,7 +24,7 @@ const gateway = braintree.connect({
 });
 
 const latestVersion = "0.0.1";
-const latestVersionURL = "http://www.lul.com/download"
+const latestVersionURL = "http://leagueiq.gg/download";
 
 
 
@@ -42,8 +42,12 @@ exports.completePairing = functions.https.onCall((data, context) =>
 // const uid = "0daMo7V82hM7VUmWbbBtGEYBajQ2";
   var device_id;
   let payload = {
-    data: {click_action: "FLUTTER_NOTIFICATION_CLICK", title: 'PAIRING SUCCESSFUL'}
+    notification: {
+            title: 'PAIRING SUCCESSFUL',
+            click_action: 'FLUTTER_NOTIFICATION_CLICK'
+          }
   };
+
   const options = {
     priority: 'high',
     timeToLive: 10
@@ -55,20 +59,22 @@ exports.completePairing = functions.https.onCall((data, context) =>
   .then(user_record =>
   {
     device_id = user_record.device_id;
-    console.log("got the device id");
-    console.log(device_id);
-    payload["token"] = device_id;
+    // console.log("got the device id");
+    // console.log(device_id);
+    // payload["token"] = device_id;
 
     return db.collection('users').doc(uid).set({paired: true}, { merge: true});
   })
   .then( result =>
   {
     console.log("updated the DB");
-    return admin.messaging().send(payload);
+    return admin.messaging().sendToDevice(device_id, payload, options);
+    // return admin.messaging().send(payload);
   })
   .then(result => { console.log("sent the msg: ", result); return true;})
   .catch(err => {console.log(err); return false;});
 });
+
 
 exports.getCustomToken = functions.https.onCall((data, context) =>
 {
@@ -688,6 +694,8 @@ exports.subscribeSuccessful = functions.https.onCall((data, context) => {
     data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: "subscribe_success"}
   };
 
+
+
   const options = {
     priority: 'high',
     timeToLive: 10
@@ -711,10 +719,12 @@ exports.relayMessage = functions.https.onCall((data, context) => {
   const uid = context.auth.uid;
   const items = data.items.toString();
 
-  // let payload = {data: {body: items}};
-
   let payload = {
-    data: {click_action: "FLUTTER_NOTIFICATION_CLICK", body: items}
+    notification: {
+            title: 'New item recommendation',
+            body: items,
+            click_action: 'FLUTTER_NOTIFICATION_CLICK'
+          }
   };
   const options = {
     priority: 'high',
@@ -757,11 +767,11 @@ exports.relayMessage = functions.https.onCall((data, context) => {
       {
         console.log("number of preds in last 24h: "+querySnapshot.size);
         var remaining = Math.max(0, predsPerDay - querySnapshot.size - 1).toString();
-        payload.data.remaining = remaining;
+        payload.notification.tag = remaining;
         if (querySnapshot.size >= predsPerDay)
         {
           console.log('querysnapshot >10');
-          payload.data.body = "-1";
+          payload.notification.body = "-1";
           return admin.messaging().sendToDevice(device_id, payload, options)
           .then(result => {
             return "LIMIT REACHED";
