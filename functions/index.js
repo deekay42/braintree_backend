@@ -724,8 +724,13 @@ exports.relayMessage = functions.https.onCall((data, context) => {
             title: 'New item recommendation',
             body: items,
             click_action: 'FLUTTER_NOTIFICATION_CLICK'
-          }
+          },
+    data: {
+     body: items
+    },
   };
+
+  
   const options = {
     priority: 'high',
     timeToLive: 10
