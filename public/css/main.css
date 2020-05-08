@@ -2614,9 +2614,9 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
 
 #download .download-badges li a {
   display: block;
-  width: 150px;
-  height: 50px;
-  font: 0/0 a;
+  min-width: 150px;
+  min-height: 50px;
+  /* font: 0/0 a; */
   text-shadow: none;
   color: transparent;
   background-repeat: no-repeat;
@@ -2643,6 +2643,26 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
 
 #download .download-badges li a.badge-googleplay {
   background-image: url("../images/google-play.png");
+}
+
+#download .button.stroke {
+  color: #ffffff !important;
+  border-color: #ffffff;
+  margin: 0 .6rem 1.2rem;
+  padding: 0 2.2rem;
+  min-width: 188px;
+}
+
+#download .button.stroke span[class*="icon"] {
+  margin-right: 5px;
+  position: relative;
+  top: 2px;
+}
+
+#download .button.stroke:hover,
+#download .button.stroke:focus {
+  background-color: white !important;
+  color: #000000 !important;
 }
 
 

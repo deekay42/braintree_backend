@@ -41,19 +41,19 @@ exports.completePairing = functions.https.onCall((data, context) =>
 // exports.completePairing = functions.https.onRequest((req, res) => {
 // const uid = "0daMo7V82hM7VUmWbbBtGEYBajQ2";
   var device_id;
-  let payload = {
-    notification: {
-            title: 'PAIRING SUCCESSFUL',
-            click_action: 'FLUTTER_NOTIFICATION_CLICK'
-          }
-  };
+  // let payload = {
+  //   notification: {
+  //           title: 'PAIRING SUCCESSFUL',
+  //           click_action: 'FLUTTER_NOTIFICATION_CLICK'
+  //         }
+  // };
 
-  const options = {
-    priority: 'high',
-    timeToLive: 10
-  };
+  // const options = {
+  //   priority: 'high',
+  //   timeToLive: 10
+  // };
 
-  console.log("THIS IS THE UID: "+uid);
+  // console.log("THIS IS THE UID: "+uid);
 
   return getUser(uid)
   .then(user_record =>
@@ -64,15 +64,15 @@ exports.completePairing = functions.https.onCall((data, context) =>
     // payload["token"] = device_id;
 
     return db.collection('users').doc(uid).set({paired: true}, { merge: true});
-  })
-  .then( result =>
-  {
-    console.log("updated the DB");
-    return admin.messaging().sendToDevice(device_id, payload, options);
-    // return admin.messaging().send(payload);
-  })
-  .then(result => { console.log("sent the msg: ", result); return true;})
-  .catch(err => {console.log(err); return false;});
+  });
+  // .then( result =>
+  // {
+  //   console.log("updated the DB");
+  //   // return admin.messaging().sendToDevice(device_id, payload, options);
+  //   // return admin.messaging().send(payload);
+  // })
+  // .then(result => { console.log("sent the msg: ", result); return true;})
+  // .catch(err => {console.log(err); return false;});
 });
 
 
@@ -719,22 +719,31 @@ exports.relayMessage = functions.https.onCall((data, context) => {
   const uid = context.auth.uid;
   const items = data.items.toString();
 
-  let payload = {
-    notification: {
-            title: 'New item recommendation',
-            body: items,
-            click_action: 'FLUTTER_NOTIFICATION_CLICK'
-          },
-    data: {
-     body: items
-    },
-  };
+  // let payload;
+  // if(items !== "-1")
+  //   payload = {
+  //     notification: {
+  //             title: 'New item recommendation',
+  //             click_action: 'FLUTTER_NOTIFICATION_CLICK'
+  //           },
+  //     data: {
+  //      body: items
+  //     },
+  //   };
+  // else
+  //   payload = {
+  //     notification: {
+  //             title: 'Desktop connection established'
+  //           }
+  //   };
 
-  
-  const options = {
-    priority: 'high',
-    timeToLive: 10
-  };
+
+
+  //
+  // const options = {
+  //   priority: 'high',
+  //   timeToLive: 10
+  // };
 
 
   const newPredDB = {timestamp: new Date(), items: items};
@@ -758,43 +767,45 @@ exports.relayMessage = functions.https.onCall((data, context) => {
       return db.collection('users').doc(uid).collection('predictions').add(newPredDB)
       .then(lol =>
       {
-        return admin.messaging().sendToDevice(device_id, payload, options)
-        .then( lol => {return "SUCCESSFUL,1337";});
+        // return admin.messaging().sendToDevice(device_id, payload, options)
+        // .then( lol => {return "SUCCESSFUL,1337";});
+        return "SUCCESSFUL,1337";
       });
 
 
     }
     else
     {
+      //TODO: need to replace sendtodevice with database update.
       console.log("User does NOT have active sub: ");
       return getNumPredLast24(uid)
       .then(querySnapshot =>
       {
         console.log("number of preds in last 24h: "+querySnapshot.size);
         var remaining = Math.max(0, predsPerDay - querySnapshot.size - 1).toString();
-        payload.notification.tag = remaining;
+        // payload.notification.tag = remaining;
         if (querySnapshot.size >= predsPerDay)
         {
           console.log('querysnapshot >10');
-          payload.notification.body = "-1";
-          return admin.messaging().sendToDevice(device_id, payload, options)
-          .then(result => {
-            return "LIMIT REACHED";
-          });
-
+          // payload.notification.body = "-1";
+          // return admin.messaging().sendToDevice(device_id, payload, options)
+          // .then(result => {
+          //   return "LIMIT REACHED";
+          // });
+return "LIMIT REACHED"
         }
         else
         {
           console.log('querysnapshot <10');
           console.log("device_id: "+device_id)
-          return admin.messaging().sendToDevice(device_id, payload, options)
-          .then(result => {
-            return db.collection('users').doc(uid).collection('predictions').add(newPredDB)
-            .then(result =>{
-              return "SUCCESSFUL,"+remaining;
-            });
-          });
-
+          // return admin.messaging().sendToDevice(device_id, payload, options)
+          // .then(result => {
+          //   return db.collection('users').doc(uid).collection('predictions').add(newPredDB)
+          //   .then(result =>{
+          //     return "SUCCESSFUL,"+remaining;
+          //   });
+          // });
+return "SUCCESSFUL,"+remaining;
 
         }
       })
