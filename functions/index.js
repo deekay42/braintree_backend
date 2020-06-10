@@ -225,6 +225,10 @@ exports.passUIDtoDesktop = functions.https.onCall((data, context) =>
   })
   .then(response =>
   {
+    return db.collection('users').doc(uid).set({paired: true}, { merge: true});
+  })
+  .then(response =>
+  {
     console.log("Pairing successful");
     return "SUCCESS";
   })
