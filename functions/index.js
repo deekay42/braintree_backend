@@ -58,7 +58,7 @@ exports.completePairing = functions.https.onCall((data, context) =>
   return getUser(uid)
   .then(user_record =>
   {
-    device_id = user_record.device_id;
+    // device_id = user_record.device_id;
     // console.log("got the device id");
     // console.log(device_id);
     // payload["token"] = device_id;
@@ -73,6 +73,24 @@ exports.completePairing = functions.https.onCall((data, context) =>
   // })
   // .then(result => { console.log("sent the msg: ", result); return true;})
   // .catch(err => {console.log(err); return false;});
+});
+
+
+exports.unpair = functions.https.onCall((data, context) =>
+{
+  if (!context.auth) {
+    // Throwing an HttpsError so that the client gets the error details.
+    throw new functions.https.HttpsError('failed-precondition', 'The function must be called ' +
+        'while authenticated.');
+  }
+
+  const uid = context.auth.uid;
+
+  return getUser(uid)
+  .then(user_record =>
+  {
+    return db.collection('users').doc(uid).set({paired: false}, { merge: true});
+  });
 });
 
 
