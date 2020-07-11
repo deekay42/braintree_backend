@@ -96,7 +96,7 @@ section {
 }
 
 #faq * p {
-
+text-align:start;
   color: #9e9e9e;
 }
 
@@ -1802,7 +1802,7 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
   .home-image-right {
     width: 400px;
     right: auto;
-    top: auto;
+    top: 65%;
     left: 50%;
     bottom: 0;
     -webkit-transform: translateX(-50%);
@@ -1888,7 +1888,7 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
 
 
 #setup * p {
-
+text-align:start;
   color: #9e9e9e;
 }
 
@@ -1961,7 +1961,7 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
   width: 100%;
   max-width: 1000px;
   min-height: 300px;
-  margin-top: 7.2rem;
+  margin-top: 2.2rem;
   margin-left: auto;
   margin-right: auto;
   clear: both;
@@ -2129,7 +2129,7 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
     display: none;
   }
   .about-how-content .step {
-    padding: 60px 0 0 0;
+    padding: 60px 0 20px 0;
   }
   .about-how-content .step::before {
     top: 0;
@@ -2154,6 +2154,7 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
 #features p {
 
   color: #9e9e9e;
+  text-align:start;
 }
 
 #features h3 {
@@ -2611,6 +2612,7 @@ html[data-useragent*='MSIE 10.0'] .home-scrolldown,
   display: inline-block;
   margin: 0 7.5px;
   padding-left: 0;
+  padding-bottom: 10px;
 }
 
 #download .download-badges li a {
