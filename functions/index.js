@@ -875,7 +875,8 @@ exports.getInviteCode = functions.https.onCall((data, context) =>
     {
       var data = doc.data();
       console.log("this is the result for the invite code: "+JSON.stringify(data));
-      if(data.hasOwnProperty("uid"))
+      
+      if(Object.prototype.hasOwnProperty.call(data, "uid"))
       {
         if(uid === data.uid)
           return true;
