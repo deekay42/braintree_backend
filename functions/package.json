@@ -10,18 +10,17 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
-    "@google-cloud/storage": "2.5.0",
     "archiver": "^3.1.1",
-    "braintree": "^2.22.0",
-    "firebase-admin": "^8.10.0",
-    "firebase-functions": "^3.6.0"
+    "braintree": "^2.23.0",
+    "firebase-admin": "^9.0.0",
+    "firebase-functions": "^3.9.0"
   },
   "devDependencies": {
-    "eslint": "^5.16.0",
+    "eslint": "^7.6.0",
     "eslint-plugin-promise": "^4.2.1"
   },
   "private": true,
   "engines": {
-    "node": "8"
+    "node": "10"
   }
 }
