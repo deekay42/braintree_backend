@@ -44,16 +44,17 @@
 
         <div class="header-logo" style="top: 40%">
 
-            <a href="index.html"><img src="images/iq.png" style="width:40px;height:30px" alt="" /></a>
+            <a href="index.html"><img src="images/IQ.png" style="width:40px;height:30px" alt="" /></a>
         </div>
 
         <nav id="header-nav-wrap">
             <ul class="header-main-nav">
                 <li class="current"><a class="smoothscroll" href="#home" title="home">Home</a></li>
+                <li><a class="smoothscroll" href="#download" title="download">Download</a></li>
                 <li><a class="smoothscroll" href="#features" title="features">Features</a></li>
                 <li><a class="smoothscroll" href="#setup" title="setup">Setup</a></li>
                 <li><a class="smoothscroll" href="#faq" title="faq">FAQ</a></li>
-                <li><a class="smoothscroll" href="#download" title="download">Download</a></li>
+
             </ul>
 
         </nav>
@@ -65,7 +66,7 @@
 
     <!-- home
    ================================================== -->
-    <section id="home" data-parallax="scroll" data-image-src="images/hero-bg.jpg" data-natural-width=3000 data-natural-height=2000>
+    <section id="home" data-parallax="scroll" data-image-src="images/hero-bg-blur.jpg" data-natural-width=3000 data-natural-height=2000>
     <!-- <section id="home" data-parallax="scroll" data-natural-width=3000 data-natural-height=2000> -->
         <canvas class="background"></canvas>
         <div class="overlay"></div>
@@ -77,15 +78,15 @@
                     <h1 style="margin-bottom:3rem">
                         League IQ
                     </h1>
+                    <p class="lead">
+                        The #1 League of Legends build AI
+                    </p>
                     <div class="buttons">
                         <a href="#download" class="smoothscroll button stroke">
                             <span class="icon-circle-down" aria-hidden="true"></span>
-                            Download App
+                            Download
                         </a>
                     </div>
-                    <p class="lead" style="font-family: 'muli-regular', sans-serif; font-size: 1.7rem;">
-                        League IQ is the #1 League of Legends build recommendation AI
-                    </p>
                 </div>
                 <div class="home-image-right">
                     <img src="images/iphone-app-small.png"
@@ -95,7 +96,7 @@
 
         </div> <!-- end home-content -->
 
-        <ul class="home-social-list">
+        <!-- <ul class="home-social-list">
             <li>
                 <a href="#"><i class="fa fa-facebook-square"></i></a>
             </li>
@@ -108,7 +109,7 @@
             <li>
                 <a href="#"><i class="fa fa-youtube-play"></i></a>
             </li>
-        </ul>
+        </ul> -->
         <!-- end home-social-list -->
 
         <div class="home-scrolldown">
@@ -119,6 +120,67 @@
         </div>
 
     </section> <!-- end home -->
+
+    <!-- download
+================================================== -->
+
+
+
+    <section id="download">
+        <div class="row ">
+            <div class="col-full">
+                <h1 class="intro-header">Download</h1>
+                <p style="margin-bottom:1.5rem">
+                    League IQ comes in two parts; You need to download both: 1. the windows app and 2. the mobile app.
+                </p>
+                <!-- <div class="subscribe-form">
+
+                    <form id="mc-form" class="group" novalidate="true">
+
+                        <div class="row">
+                            <div class="col-4-6">
+                                <input type="email" value="" name="EMAIL" class="email" id="mc-email"
+                                    placeholder="Email Address" required=""
+                                    style="background:rgb(230, 230, 230); color:#ffffff; padding: 0.5rem 1.5rem; height:3.5rem">
+                            </div>
+                            <div class="col-2-6">
+                                <input type="submit" name="subscribe" value="Send"
+                                    style="padding: 0.5rem 1.5rem; height:3.5rem; line-height: 1rem">
+                            </div>
+                        </div>
+                        <label for="mc-email" class="subscribe-message" style="color:white"></label>
+
+                    </form>
+
+                </div> -->
+            </div>
+        </div>
+        <div class="row">
+                <div class="about-how-content">
+                    <div class="about-how-steps block-1-2 block-tab-full group">
+
+                            <div class="bgrid step" data-item="1">
+                                <h3>Download Windows App</h3>
+
+                                <ul class="download-badges">
+                                        <li><a href="https://firebasestorage.googleapis.com/v0/b/neuralleague.appspot.com/o/Install%20League%20IQ.exe?alt=media&token=3a30a1e9-04d4-45a2-9d47-797cf52aee1a" title="" class="badge-windows">Windows</a></li>
+
+                                </ul>
+                            </div>
+
+                            <div class="bgrid step" data-item="2">
+                                <h3>Download Mobile App</h3>
+                                <ul class="download-badges">
+                                        <li><a href="https://apps.apple.com/us/app/league-iq/id1511807071?ls=1" title="" class="badge-appstore">App Store</a></li>
+                                        <li><a href="https://play.google.com/store/apps/details?id=com.leagueiq.app" title="" class="badge-googleplay">Play Store</a></li>
+                                </ul>
+                            </div>
+                    </div>
+                </div>
+
+        </div>
+
+    </section> <!-- end download -->
 
 
     <!-- about
@@ -173,6 +235,8 @@
                 </div>
               </div>
     </section>
+
+
     <section id="setup">
         <div class="row">
 
@@ -257,79 +321,37 @@
                 </div> <!-- /bgrid -->
 
 
+                <div class="feature">
+
+
+                    <div class="service-content">
+                        <h4>It doesn't work. What do I do?</h4>
+
+                        <p>Try sending a test message by clicking on the "Send test message" button in the mobile app. If that doesn't work try pairing the phone again.</p>
+
+                    </div>
+
+                </div> <!-- /bgrid -->
+
+                <div class="feature">
+
+
+                    <div class="service-content">
+                        <h4>It still doesn't work.</h4>
+
+                        <p>Enter the Settings menu in game and click 'Restore defaults' in the 'Interface' section and restart the game as well as the app. If that doesn't work email us at leagueiqapp@gmail.com</p>
+
+                    </div>
+
+                </div> <!-- /bgrid -->
+
 
             </div> <!-- end features-list -->
 
         </div> <!-- end about-features -->
+    </section>
 
 
-        <!-- download
-    ================================================== -->
-
-
-
-        <section id="download">
-            <div class="row ">
-                <div class="col-full">
-                    <h1 class="intro-header">Download</h1>
-                    <p style="color:orange; margin-bottom:1.5rem">
-                        League IQ is in closed beta at this time. To request an invite code you can email us at <a
-                            href="mailto:leagueiqapp@gmail.com?Subject=Request%20Invite"
-                            target="_top">leagueiqapp@gmail.com</a>. To receive updates you can sign up to our mailing
-                        list (if you can't see the email form below, try disabling your adblocker):
-                    </p>
-                    <div class="subscribe-form">
-
-                        <form id="mc-form" class="group" novalidate="true">
-
-                            <div class="row">
-                                <div class="col-4-6">
-                                    <input type="email" value="" name="EMAIL" class="email" id="mc-email"
-                                        placeholder="Email Address" required=""
-                                        style="background:rgb(230, 230, 230); color:#ffffff; padding: 0.5rem 1.5rem; height:3.5rem">
-                                </div>
-                                <div class="col-2-6">
-                                    <input type="submit" name="subscribe" value="Send"
-                                        style="padding: 0.5rem 1.5rem; height:3.5rem; line-height: 1rem">
-                                </div>
-                            </div>
-                            <label for="mc-email" class="subscribe-message" style="color:white"></label>
-
-                        </form>
-
-                    </div>
-                </div>
-            </div>
-            <div class="row">
-                    <div class="about-how-content">
-                        <div class="about-how-steps block-1-2 block-tab-full group">
-
-                                <div class="bgrid step" data-item="1">
-                                    <h3>Download Windows App</h3>
-                                    <ul class="download-badges">
-                                      <li>
-                                      <div class="buttons">
-                                          <a href="https://firebasestorage.googleapis.com/v0/b/neuralleague.appspot.com/o/Install%20League%20IQ.exe?alt=media&token=a278094e-9048-47fe-9662-5fcfc779d29a" class="button stroke">
-                                              <span class="icon-circle-down" aria-hidden="true"></span>Download</a>
-
-                                      </div>
-                                    </li>
-                                    </ul>
-                                </div>
-
-                                <div class="bgrid step" data-item="2">
-                                    <h3>Download Mobile App</h3>
-                                    <ul class="download-badges">
-                                            <li><a href="https://apps.apple.com/us/app/league-iq/id1511807071?ls=1" title="" class="badge-appstore">App Store</a></li>
-                                            <li><a href="https://play.google.com/store/apps/details?id=com.leagueiq.app" title="" class="badge-googleplay">Play Store</a></li>
-                                        </ul>
-                                </div>
-                        </div>
-                    </div>
-
-            </div>
-
-        </section> <!-- end download -->
 
 
         <!-- footer
@@ -347,7 +369,7 @@
                         <ul class="list-links">
                             <li><a href="mailto:leagueiqapp@gmail.com">leagueiqapp@gmail.com</a></li>
                         </ul>
-                      
+
                     </div> <!-- end footer-contact -->
 
                     <div class="col-two md-1-3 tab-1-2 mob-full footer-site-links">
